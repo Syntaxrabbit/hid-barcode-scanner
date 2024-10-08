@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DeviceUnknown
+import androidx.compose.material.icons.filled.Expand
 import androidx.compose.material.icons.filled.Exposure
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FlipCameraAndroid
@@ -35,32 +38,40 @@ import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.ScreenRotation
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShutterSpeed
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.ZoomIn
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import dev.fabik.bluetoothhid.ui.ButtonPreference
 import dev.fabik.bluetoothhid.ui.CheckBoxPreference
 import dev.fabik.bluetoothhid.ui.ComboBoxPreference
+import dev.fabik.bluetoothhid.ui.JavaScriptEditorDialog
 import dev.fabik.bluetoothhid.ui.SliderPreference
 import dev.fabik.bluetoothhid.ui.SwitchPreference
 import dev.fabik.bluetoothhid.ui.TextBoxPreference
+import dev.fabik.bluetoothhid.ui.rememberDialogState
 import dev.fabik.bluetoothhid.utils.PreferenceStore
+import dev.fabik.bluetoothhid.utils.rememberPreferenceNull
 
 @Composable
 fun SettingsContent() {
@@ -102,7 +113,8 @@ fun SettingsContent() {
 }
 
 @Composable
-fun ColoredDivider() = Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+fun ColoredDivider() =
+    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
 
 @Composable
 fun SectionTitle(@StringRes id: Int) {
@@ -161,20 +173,59 @@ fun ConnectionSettings() {
         title = stringResource(R.string.custom_template),
         desc = stringResource(R.string.custom_templ_desc),
         descLong = stringResource(R.string.custom_templ_desc_long),
+        validator = {
+            // TODO: generalize
+            it.contains("{CODE}") || it.contains("{CODE_B64}") || it.contains("{CODE_HEX}")
+        },
         icon = Icons.Default.LibraryAdd,
         preference = PreferenceStore.TEMPLATE_TEXT
     )
 
     SwitchPreference(
+        title = stringResource(R.string.templates_in_value),
+        desc = stringResource(R.string.template_in_value_desc),
+        icon = Icons.Default.Expand,
+        preference = PreferenceStore.EXPAND_CODE
+    )
+
+    SwitchPreference(
         title = stringResource(R.string.auto_send),
         desc = stringResource(R.string.auto_send_desc),
-        icon = Icons.Default.Send,
+        icon = Icons.AutoMirrored.Filled.Send,
         preference = PreferenceStore.AUTO_SEND
     )
+
+    val jsDialog = rememberDialogState()
+    var jsEnabled by rememberPreferenceNull(PreferenceStore.ENABLE_JS)
+
+    ButtonPreference(
+        title = stringResource(R.string.custom_javascript),
+        desc = stringResource(R.string.custom_js_desc),
+        icon = Icons.Default.Code,
+        extra = {
+            jsEnabled?.let { c ->
+                Switch(c, onCheckedChange = {
+                    jsEnabled = it
+                }, modifier = Modifier.semantics(mergeDescendants = true) {
+                    stateDescription = "Custom JavaScript is ${if (c) "On" else "Off"}"
+                })
+            }
+        },
+        onClick = jsDialog::open
+    )
+
+    JavaScriptEditorDialog(jsDialog)
 }
 
 @Composable
 fun AppearanceSettings() {
+    SwitchPreference(
+        title = stringResource(R.string.keep_screen_on),
+        desc = stringResource(R.string.keep_screen_on_desc),
+        icon = Icons.Default.ScreenLockPortrait,
+        preference = PreferenceStore.KEEP_SCREEN_ON
+    )
+
     SwitchPreference(
         title = stringResource(R.string.allow_screen_rotation),
         desc = stringResource(R.string.allow_screen_rotation_desc),
@@ -322,7 +373,7 @@ fun ScannerSettings() {
     SwitchPreference(
         title = stringResource(R.string.play_sound),
         desc = stringResource(R.string.play_sound_desc),
-        icon = Icons.Default.VolumeUp,
+        icon = Icons.AutoMirrored.Filled.VolumeUp,
         preference = PreferenceStore.PLAY_SOUND
     )
 
@@ -338,6 +389,13 @@ fun ScannerSettings() {
         desc = stringResource(R.string.raw_value_desc),
         icon = Icons.Default.Description,
         preference = PreferenceStore.RAW_VALUE
+    )
+
+    SwitchPreference(
+        title = stringResource(R.string.private_mode),
+        desc = stringResource(R.string.private_mode_desc),
+        icon = Icons.Default.Shield,
+        preference = PreferenceStore.PRIVATE_MODE,
     )
 }
 

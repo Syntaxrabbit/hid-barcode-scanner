@@ -18,6 +18,7 @@ import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.fabik.bluetoothhid.BuildConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -44,8 +45,12 @@ open class PreferenceStore {
         val KEYBOARD_LAYOUT = intPreferencesKey("keyboard_layout") defaultsTo 0
         val EXTRA_KEYS = intPreferencesKey("extra_keys") defaultsTo 0 // None
         val TEMPLATE_TEXT = stringPreferencesKey("template_text") defaultsTo ""
+        val ENABLE_JS = booleanPreferencesKey("enable_js") defaultsTo false
+        val JS_CODE = stringPreferencesKey("js_code") defaultsTo ""
+        val EXPAND_CODE = booleanPreferencesKey("expand_code") defaultsTo false
 
         // Appearance
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on") defaultsTo false
         val ALLOW_SCREEN_ROTATION = booleanPreferencesKey("allow_screen_rotation") defaultsTo false
         val SCANNER_FULL_SCREEN = booleanPreferencesKey("scanner_full_screen") defaultsTo false
         val THEME = intPreferencesKey("theme") defaultsTo 0 // System
@@ -74,6 +79,9 @@ open class PreferenceStore {
         val RAW_VALUE = booleanPreferencesKey("raw_value") defaultsTo false
         val SHOW_POSSIBLE = booleanPreferencesKey("show_possible") defaultsTo false
         // val HIGHLIGHT_TYPE = intPreferencesKey("highlight") defaultsTo 0 // Box - Removed
+        val PRIVATE_MODE = booleanPreferencesKey("private_mode") defaultsTo false
+
+        val DEVELOPER_MODE = booleanPreferencesKey("developer_mode") defaultsTo BuildConfig.DEBUG
     }
 }
 

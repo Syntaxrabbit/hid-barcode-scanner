@@ -133,13 +133,21 @@
     <string name="fix_exposure_desc">Helps to reduce motion blur in the image</string>
     <string name="filter_regex">Filter regex</string>
     <string name="filter_regex_desc">Allows to filter codes by a regular expression</string>
-    <string name="filter_desc_long">Supports common regex syntax. Use empty string or .* to match everything.</string>
+    <string name="filter_desc_long">Supports common regex syntax. Use empty string or .* to match everything. If the regex contains a capture group "(…)", the value of the group will be used.</string>
     <string name="custom_template">Custom template</string>
     <string name="custom_templ_desc">Allows you to set a custom template</string>
-    <string name="custom_templ_desc_long">Make sure to set \'Extra keys\' to \'Custom\'. Special placeholders: {CODE}, {F1–12}, {ENTER}, {ESC}, {TAB}, {BKSP}, {DATE}, {TIME}, {LEFT}, {RIGHT}, {UP}, {DOWN}</string>
+    <string name="custom_templ_desc_long">
+        Make sure to set \'Extra keys\' to \'Custom\'. Special placeholders: {CODE}, {CODE_B64}, {CODE_HEX}, {F1–12}, {ENTER}, {ESC}, {TAB}, {BKSP}, {DATE}, {TIME}, {LEFT}, {RIGHT}, {UP}, {DOWN} (code is required)\n
+        Modifiers can be set by prepending the following chars:\n
+            \t^: Shift\n
+            \t+: Ctrl\n
+            \t#: Alt\n
+            \t@: Meta\n
+        Example: {+r} will send CTRL+R, {^#F1} will send SHIFT+ALT+F1
+    </string>
     <string name="camera">Camera</string>
     <string name="focus_mode">Focus mode</string>
-    <string name="focus_mode_desc">Select your preferred focus behaviour. Some modes disable the abilitiy to focus manually by tapping the screen.</string>
+    <string name="focus_mode_desc">Select your preferred focus behaviour. Some modes disable the ability to focus manually by tapping the screen.</string>
     <string name="search_by_value">Search by value</string>
     <string name="history">History</string>
     <string name="search">Search</string>
@@ -155,6 +163,35 @@
     <string name="highlights_possible_codes">Highlights possible codes with dots</string>
     <string name="caps_lock_activated">Caps Lock is activated</string>
     <string name="click_to_turn_off">Click here to turn it off</string>
+    <string name="keep_screen_on">Keep screen on</string>
+    <string name="keep_screen_on_desc">Prevents screen from turning off while scanning</string>
+    <string name="private_mode">Privacy mode</string>
+    <string name="private_mode_desc">Hides the scan value by default</string>
+    <string name="camera_error">Camera error!</string>
+    <string name="camera_error_desc">Error initializing camera. Please restart the app or your device. If this keeps happening, please create a new issue on Github.</string>
+    <string name="press_run_to_evaluate">Press run to evaluate</string>
+    <string name="custom_javascript">Custom JavaScript</string>
+    <string name="custom_js_desc">Modify the scanned value using JS</string>
+    <string name="editor_desc">Allows you to enter any JavaScript to modify the value of the code. Two constants are defined (\'format\' and \'code\'). Last statement is used as result (no return required).</string>
+    <string name="editor">Editor</string>
+    <string name="debug">Debug</string>
+    <string name="code">Code</string>
+    <string name="format">Format</string>
+    <string name="output">Output</string>
+    <string name="run">Run</string>
+    <string name="export">Export</string>
+    <string name="export_csv">CSV data</string>
+    <string name="export_json">JSON data</string>
+    <string name="export_lines">Lines</string>
+    <string name="export_fields" translatable="false">text, timestamp, type</string>
+    <string name="export_lines_description">text with line breaks</string>
+    <string name="export_as">Export as</string>
+    <string name="delete_selection">Delete selection?</string>
+    <string name="delete_selection_desc">Are you sure you want to delete the selected item(s)?</string>
+    <string name="templates_in_value">Templates in value</string>
+    <string name="template_in_value_desc">Expand templates in the code value (Requires custom template)</string>
+    <string name="error_connecting_to_device">Error connecting to device! Trying to restart service…</string>
+    <string name="developer_mode">Developer mode</string>
     <string-array name="theme_values">
         <item>System</item>
         <item>Light</item>
@@ -205,6 +242,7 @@
         <item>English (GB)</item>
         <item>Spanish (ES)</item>
         <item>Italian (IT)</item>
+        <item>Turkish Q (TR)</item>
     </string-array>
     <string-array name="highlight_values">
         <item>Box</item>
@@ -218,4 +256,8 @@
         <item>EDOF</item>
         <item>Fixed (Infinity)</item>
     </string-array>
+    <plurals name="export_items">
+        <item quantity="one">Export %1$d item</item>
+        <item quantity="other">Export %1$d items</item>
+    </plurals>
 </resources>

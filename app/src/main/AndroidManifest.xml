@@ -72,6 +72,10 @@
             android:foregroundServiceType="connectedDevice"
             android:stopWithTask="true" />
 
+        <service
+            android:name=".utils.JsEngineService"
+            android:stopWithTask="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -115,6 +119,11 @@
         <meta-data
             android:name="firebase_analytics_collection_deactivated"
             android:value="true" />
+
+        <!-- Remove unnecessary service -->
+        <service
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+            tools:node="remove" />
 
     </application>
 

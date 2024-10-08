@@ -11,25 +11,59 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
 import android.widget.Toast
-import androidx.camera.core.Camera
 import androidx.camera.core.TorchState
-import androidx.compose.foundation.layout.*
+import androidx.camera.view.CameraController
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.ripple.LocalRippleTheme
 import androidx.compose.material.ripple.RippleAlpha
 import androidx.compose.material.ripple.RippleTheme
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.*
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ParagraphStyle
@@ -39,13 +73,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.fabik.bluetoothhid.bt.KeyTranslator
-import dev.fabik.bluetoothhid.ui.*
+import dev.fabik.bluetoothhid.ui.CameraArea
+import dev.fabik.bluetoothhid.ui.DialogState
+import dev.fabik.bluetoothhid.ui.Dropdown
+import dev.fabik.bluetoothhid.ui.InfoDialog
+import dev.fabik.bluetoothhid.ui.LocalNavigation
+import dev.fabik.bluetoothhid.ui.RequiresCameraPermission
+import dev.fabik.bluetoothhid.ui.Routes
 import dev.fabik.bluetoothhid.ui.theme.Neutral95
 import dev.fabik.bluetoothhid.ui.theme.Typography
+import dev.fabik.bluetoothhid.ui.tooltip
 import dev.fabik.bluetoothhid.utils.DeviceInfo
 import dev.fabik.bluetoothhid.utils.PreferenceStore
 import dev.fabik.bluetoothhid.utils.rememberPreference
 import dev.fabik.bluetoothhid.utils.rememberPreferenceDefault
+import kotlinx.coroutines.launch
 
 /**
  * Scanner screen with camera preview.
@@ -59,7 +101,7 @@ fun Scanner(
     sendText: (String) -> Unit
 ) {
     var currentBarcode by rememberSaveable { mutableStateOf<String?>(null) }
-    var camera by remember { mutableStateOf<Camera?>(null) }
+    var camera by remember { mutableStateOf<CameraController?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val fullScreen by rememberPreference(PreferenceStore.SCANNER_FULL_SCREEN)
@@ -91,12 +133,20 @@ fun Scanner(
                         sendText(value)
                     }
                 }
-                BarcodeValue(currentBarcode)
             }
+        }
+        Box(
+            Modifier
+                .padding(padding)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            BarcodeValue(currentBarcode)
             CapsLockWarning()
             camera?.let {
                 ZoomStateInfo(it)
             }
+            KeepScreenOn()
         }
     }
 }
@@ -109,7 +159,7 @@ fun Scanner(
  */
 @Composable
 private fun CameraPreviewArea(
-    onCameraReady: (Camera) -> Unit,
+    onCameraReady: (CameraController) -> Unit,
     onBarcodeDetected: (String, Boolean) -> Unit,
 ) {
     val context = LocalContext.current
@@ -170,6 +220,7 @@ private fun CameraPreviewArea(
 private fun BoxScope.BarcodeValue(currentBarcode: String?) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    val privateMode by rememberPreference(PreferenceStore.PRIVATE_MODE)
 
     Column(
         Modifier
@@ -180,16 +231,28 @@ private fun BoxScope.BarcodeValue(currentBarcode: String?) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         val copiedString = stringResource(R.string.copied_to_clipboard)
+        var hideText by remember(privateMode, currentBarcode) {
+            mutableStateOf(privateMode)
+        }
 
         currentBarcode?.let {
-            val text = AnnotatedString(it, SpanStyle(Neutral95), ParagraphStyle(TextAlign.Center))
+            val text = AnnotatedString(
+                if (hideText) "*".repeat(it.length) else it,
+                SpanStyle(Neutral95),
+                ParagraphStyle(TextAlign.Center)
+            )
+
             ClickableText(
                 text,
                 maxLines = 6,
                 overflow = TextOverflow.Ellipsis
             ) {
-                clipboardManager.setText(text)
-                Toast.makeText(context, copiedString, Toast.LENGTH_SHORT).show()
+                if (privateMode) {
+                    hideText = !hideText
+                } else {
+                    clipboardManager.setText(text)
+                    Toast.makeText(context, copiedString, Toast.LENGTH_SHORT).show()
+                }
             }
         } ?: run {
             Text(
@@ -243,7 +306,7 @@ private fun SendToDeviceFAB(
                     Text(stringResource(R.string.send_to_device))
                 },
                 icon = {
-                    Icon(Icons.Filled.Send, "Send")
+                    Icon(Icons.AutoMirrored.Filled.Send, "Send")
                 },
                 contentColor = contentColor,
                 containerColor = containerColor,
@@ -264,7 +327,7 @@ private fun SendToDeviceFAB(
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ScannerAppBar(
-    camera: Camera?,
+    camera: CameraController?,
     currentDevice: BluetoothDevice?,
     transparent: Boolean,
 ) {
@@ -284,7 +347,7 @@ private fun ScannerAppBar(
         },
         actions = {
             camera?.let {
-                if (it.cameraInfo.hasFlashUnit()) {
+                if (it.cameraInfo?.hasFlashUnit() == true) {
                     ToggleFlashButton(it)
                 }
             }
@@ -314,12 +377,12 @@ private fun ScannerAppBar(
  * @param camera the camera to toggle the flash on
  */
 @Composable
-fun ToggleFlashButton(camera: Camera) {
-    val torchState by camera.cameraInfo.torchState.observeAsState()
+fun ToggleFlashButton(camera: CameraController) {
+    val torchState by camera.torchState.observeAsState()
 
     IconButton(
         onClick = {
-            camera.cameraControl.enableTorch(
+            camera.enableTorch(
                 when (torchState) {
                     TorchState.OFF -> true
                     else -> false
@@ -342,19 +405,22 @@ fun ToggleFlashButton(camera: Camera) {
  * Clicking on the card will send a caps lock key press to the
  * connected device and disables it.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BoxScope.CapsLockWarning() {
     val controller = LocalController.current
+    val scope = rememberCoroutineScope()
 
-    if (controller.isCapsLockOn) {
+    AnimatedVisibility(
+        controller.isCapsLockOn, Modifier
+            .padding(12.dp)
+            .align(Alignment.TopCenter)
+    ) {
         ElevatedCard(
             onClick = {
-                controller.keyboardSender?.sendKey(KeyTranslator.CAPS_LOCK_KEY)
-            },
-            Modifier
-                .padding(12.dp)
-                .align(Alignment.TopCenter)
+                scope.launch {
+                    controller.keyboardSender?.sendKey(KeyTranslator.CAPS_LOCK_KEY)
+                }
+            }
         ) {
             Row(
                 Modifier.padding(8.dp),
@@ -378,8 +444,8 @@ fun BoxScope.CapsLockWarning() {
  * @param camera the camera to get the zoom-factor from
  */
 @Composable
-fun BoxScope.ZoomStateInfo(camera: Camera) {
-    val zoomState by camera.cameraInfo.zoomState.observeAsState()
+fun BoxScope.ZoomStateInfo(camera: CameraController) {
+    val zoomState by camera.zoomState.observeAsState()
     zoomState?.let {
         if (it.zoomRatio > 1.0f) {
             Text(
@@ -462,6 +528,19 @@ fun DeviceInfoDialog(
 //                    Text(it.toString())
 //                }
 //            }
+        }
+    }
+}
+
+@Composable
+fun KeepScreenOn() {
+    val keepScreenOn by rememberPreference(PreferenceStore.KEEP_SCREEN_ON)
+    val currentView = LocalView.current
+
+    DisposableEffect(keepScreenOn) {
+        currentView.keepScreenOn = keepScreenOn
+        onDispose {
+            currentView.keepScreenOn = false
         }
     }
 }

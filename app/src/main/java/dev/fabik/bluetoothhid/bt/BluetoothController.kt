@@ -1,8 +1,14 @@
 package dev.fabik.bluetoothhid.bt
 
 import android.annotation.SuppressLint
-import android.bluetooth.*
+import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothHidDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.getValue
@@ -11,13 +17,10 @@ import androidx.compose.runtime.setValue
 import dev.fabik.bluetoothhid.R
 import dev.fabik.bluetoothhid.utils.PreferenceStore
 import dev.fabik.bluetoothhid.utils.getPreference
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 typealias Listener = (BluetoothDevice?, Int) -> Unit
 
@@ -134,7 +137,7 @@ class BluetoothController(var context: Context) {
         override fun onInterruptData(device: BluetoothDevice?, reportId: Byte, data: ByteArray?) {
             super.onInterruptData(device, reportId, data)
 
-            data?.get(0)?.toInt()?.let {
+            data?.getOrNull(0)?.toInt()?.let {
                 isCapsLockOn = it and 0x02 != 0
                 // isNumLockOn = it and 0x01 != 0
                 // isScrollLockOn = it and 0x04 != 0
@@ -205,40 +208,68 @@ class BluetoothController(var context: Context) {
         bluetoothAdapter?.cancelDiscovery()
     }
 
-    fun connect(device: BluetoothDevice) {
+    suspend fun connect(device: BluetoothDevice) {
         // Cancel discovery because it otherwise slows down the connection.
         bluetoothAdapter?.cancelDiscovery()
 
-        hidDevice?.connect(device) ?: run {
+        val success = hidDevice?.connect(device) ?: run {
             // Initialize latch to wait for service to be connected.
             latch = CountDownLatch(1)
 
             // Try to register proxy.
-            if (!runBlocking { register() }) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.bt_proxy_error),
-                    Toast.LENGTH_SHORT
-                ).show()
+            return@run if (!register()) {
+                (context as? Activity)?.runOnUiThread {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.bt_proxy_error),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                false
             } else {
+                (context as? Activity)?.runOnUiThread {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.proxy_waiting),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                latch.await(5000, TimeUnit.MILLISECONDS)
+                hidDevice?.connect(device) ?: false
+            }
+        }
+
+        if (!success) {
+            (context as? Activity)?.runOnUiThread {
                 Toast.makeText(
                     context,
-                    context.getString(R.string.proxy_waiting),
+                    context.getString(R.string.error_connecting_to_device),
                     Toast.LENGTH_SHORT
                 ).show()
+            }
 
-                CoroutineScope(Dispatchers.IO).launch {
-                    latch.await()
-                    hidDevice?.connect(device)
+            Intent(
+                context,
+                BluetoothService::class.java
+            ).apply {
+                action = BluetoothService.ACTION_REGISTER
+            }.also {
+                (context as? Activity)?.runOnUiThread {
+                    context.startForegroundService(it)
                 }
             }
         }
     }
 
     fun disconnect(): Boolean {
+        if (isSending) {
+            return false
+        }
+
         return hostDevice?.let {
             hidDevice?.disconnect(it)
-        } ?: false
+        } ?: true
     }
 
     suspend fun sendString(string: String) = with(context) {
@@ -251,17 +282,23 @@ class BluetoothController(var context: Context) {
         val extraKeys = getPreference(PreferenceStore.EXTRA_KEYS).first()
         val layout = getPreference(PreferenceStore.KEYBOARD_LAYOUT).first()
         val template = getPreference(PreferenceStore.TEMPLATE_TEXT).first()
+        val expand = getPreference(PreferenceStore.EXPAND_CODE).first()
 
         keyboardSender?.sendString(
-            string, sendDelay.toLong(), extraKeys,
+            string,
+            sendDelay.toLong(),
+            extraKeys,
             when (layout) {
                 1 -> "de"
                 2 -> "fr"
                 3 -> "en"
                 4 -> "es"
                 5 -> "it"
+                6 -> "tr"
                 else -> "us"
-            }, template
+            },
+            template,
+            expand
         )
 
         isSending = false
@@ -270,9 +307,5 @@ class BluetoothController(var context: Context) {
 }
 
 fun BluetoothDevice.removeBond() {
-    try {
-        javaClass.getMethod("removeBond").invoke(this)
-    } catch (e: Exception) {
-        Log.e("BluetoothDevice", "Removing bond with $address has failed.", e)
-    }
+    javaClass.getMethod("removeBond").invoke(this)
 }

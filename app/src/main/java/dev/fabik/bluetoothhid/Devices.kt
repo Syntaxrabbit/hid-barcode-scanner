@@ -7,17 +7,55 @@ import android.bluetooth.BluetoothProfile
 import android.content.Intent
 import android.os.Build
 import android.util.Log
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothDisabled
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.East
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Scanner
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -26,13 +64,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.fabik.bluetoothhid.bt.removeBond
-import dev.fabik.bluetoothhid.ui.*
+import dev.fabik.bluetoothhid.ui.ConfirmDialog
+import dev.fabik.bluetoothhid.ui.Dropdown
+import dev.fabik.bluetoothhid.ui.LoadingDialog
+import dev.fabik.bluetoothhid.ui.LocalNavigation
+import dev.fabik.bluetoothhid.ui.RequireLocationPermission
+import dev.fabik.bluetoothhid.ui.Routes
 import dev.fabik.bluetoothhid.ui.model.DevicesViewModel
+import dev.fabik.bluetoothhid.ui.rememberDialogState
 import dev.fabik.bluetoothhid.ui.theme.Typography
+import dev.fabik.bluetoothhid.ui.tooltip
 import dev.fabik.bluetoothhid.utils.DeviceInfo
 import dev.fabik.bluetoothhid.utils.PreferenceStore
 import dev.fabik.bluetoothhid.utils.SystemBroadcastReceiver
 import dev.fabik.bluetoothhid.utils.rememberPreferenceDefault
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Devices screen. Lists all paired devices and also allows to scan for new ones by
@@ -89,7 +137,7 @@ fun Devices() = with(viewModel<DevicesViewModel>()) {
  * Content of the [Devices] screen. Handles the swipe refresh and listens for
  * connection changes.
  */
-@OptIn(ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("MissingPermission")
 @Composable
 fun DevicesViewModel.DeviceContent() {
@@ -125,18 +173,24 @@ fun DevicesViewModel.DeviceContent() {
 
     BroadcastListener()
 
-    val pullRefreshState =
-        rememberPullRefreshState(isRefreshing, { refresh(controller) })
+    val state = rememberPullToRefreshState()
+    if (state.isRefreshing) {
+        LaunchedEffect(true) {
+            refresh(controller)
+            state.endRefresh()
+        }
+    }
 
-    Box(Modifier.pullRefresh(pullRefreshState)) {
-        DeviceList(controller::connect)
+    Box(Modifier.nestedScroll(state.nestedScrollConnection)) {
+        DeviceList {
+            CoroutineScope(Dispatchers.IO).launch {
+                controller.connect(it)
+            }
+        }
 
-        PullRefreshIndicator(
-            isRefreshing,
-            pullRefreshState,
-            Modifier.align(Alignment.TopCenter),
-            backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.primary
+        PullToRefreshContainer(
+            modifier = Modifier.align(Alignment.TopCenter),
+            state = state,
         )
     }
 }
@@ -270,9 +324,8 @@ fun DevicesViewModel.DeviceList(
  * @param onClick Callback function when the card is clicked.
  */
 @SuppressLint("MissingPermission")
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeviceCard(
+fun DevicesViewModel.DeviceCard(
     device: BluetoothDevice,
     onClick: () -> Unit
 ) {
@@ -330,7 +383,12 @@ fun DeviceCard(
     DeviceInfoDialog(infoDialog, device)
 
     ConfirmDialog(confirmDialog, stringResource(R.string.unpair_device, deviceName), onConfirm = {
-        device.removeBond()
+        runCatching {
+            device.removeBond()
+            pairedDevices.remove(device)
+        }.onFailure {
+            Log.e("BluetoothDevice", "Removing bond with $device has failed.", it)
+        }
         close()
     }) {
         Text(stringResource(R.string.unpair_desc))
